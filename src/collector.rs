@@ -171,7 +171,7 @@ impl<P: Copy + PartialEq> BrokenLinkCollector<P> {
 }
 
     #[inline]
-    fn is_bad_schema(url: &[u8]) -> bool {
+    pub fn is_bad_schema(url: &[u8]) -> bool {
         // check if url is empty
         let first_char = match url.first() {
             Some(x) => x,

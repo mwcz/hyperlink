@@ -250,6 +250,7 @@ impl Document {
         }
 
         push_and_canonicalize(&mut href, &try_percent_decode(&rel_href[..qs_start]));
+        println!("{:#?}", href);
 
         if preserve_anchor {
             let anchor = &rel_href[anchor_start..];

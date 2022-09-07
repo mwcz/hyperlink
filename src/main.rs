@@ -18,6 +18,8 @@ use collector::{BrokenLinkCollector, LinkCollector, UsedLinkCollector};
 use html::{DefinedLink, Document, DocumentBuffers, Link};
 use paragraph::{DebugParagraphWalker, NoopParagraphWalker, ParagraphHasher, ParagraphWalker};
 
+use crate::collector::is_bad_schema;
+
 static MARKDOWN_FILES: &[&str] = &["md", "mdx"];
 static HTML_FILES: &[&str] = &["htm", "html"];
 
@@ -83,7 +85,7 @@ enum Subcommand {
         sources_path: PathBuf,
     },
 
-    DumpAllLinks {
+    DumpExternalLinks {
         base_path: PathBuf,
     },
 }
@@ -115,9 +117,8 @@ fn main() -> Result<(), Error> {
         }) => {
             return match_all_paragraphs(base_path, sources_path);
         }
-        Some(Subcommand::DumpAllLinks { base_path }) => {
-            println!("dump all links" );
-            return dump_all_links(base_path);
+        Some(Subcommand::DumpExternalLinks { base_path }) => {
+            return dump_external_links(base_path);
         },
         None => {}
     }
@@ -313,14 +314,6 @@ fn print_github_actions_href_list(
     Ok(())
 }
 
-fn dump_all_links(base_path: PathBuf) -> Result<(), Error> {
-    println!("Reading files");
-    let html_result =
-        extract_html_links::<UsedLinkCollector<_>, ParagraphHasher>(&base_path, true, true)?;
-
-    Ok(())
-}
-
 fn dump_paragraphs(path: PathBuf) -> Result<(), Error> {
     let extension = match path.extension() {
         Some(x) => x,
@@ -355,6 +348,32 @@ fn dump_paragraphs(path: PathBuf) -> Result<(), Error> {
             println!("{}", paragraph);
         }
     }
+
+    Ok(())
+}
+
+fn dump_external_links(base_path: PathBuf) -> Result<(), Error> {
+    println!("Reading files");
+    let html_result =
+        extract_html_links::<UsedLinkCollector<_>, NoopParagraphWalker>(&base_path, true, false)?;
+
+    println!(
+        "Checking {} links from {} files ({} documents)",
+        html_result.collector.used_links.len(), html_result.file_count, html_result.documents_count,
+    );
+
+    let mut external_link_count: u32 = 0;
+
+    for link in html_result.collector.used_links {
+        if is_bad_schema(link.href.as_bytes()) {
+            println!("  {}", link.href);
+            external_link_count += 1;
+        }
+    }
+
+    println!();
+
+    println!("Found {} external links", external_link_count);
 
     Ok(())
 }
