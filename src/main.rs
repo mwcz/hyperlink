@@ -82,6 +82,10 @@ enum Subcommand {
         base_path: PathBuf,
         sources_path: PathBuf,
     },
+
+    DumpAllLinks {
+        base_path: PathBuf,
+    },
 }
 
 fn main() -> Result<(), Error> {
@@ -111,6 +115,10 @@ fn main() -> Result<(), Error> {
         }) => {
             return match_all_paragraphs(base_path, sources_path);
         }
+        Some(Subcommand::DumpAllLinks { base_path }) => {
+            println!("dump all links" );
+            return dump_all_links(base_path);
+        },
         None => {}
     }
 
@@ -301,6 +309,14 @@ fn print_github_actions_href_list(
     }
 
     println!();
+
+    Ok(())
+}
+
+fn dump_all_links(base_path: PathBuf) -> Result<(), Error> {
+    println!("Reading files");
+    let html_result =
+        extract_html_links::<UsedLinkCollector<_>, ParagraphHasher>(&base_path, true, true)?;
 
     Ok(())
 }

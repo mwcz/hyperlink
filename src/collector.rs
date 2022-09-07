@@ -95,13 +95,16 @@ impl<P: Send + Copy> LinkCollector<P> for BrokenLinkCollector<P> {
     fn ingest(&mut self, link: Link<'_, P>) {
         match link {
             Link::Uses(used_link) => {
-                self.used_link_count += 1;
-                if let Some(state) = self.links.get_mut(&used_link.href) {
-                    state.add_usage(&used_link);
-                } else {
-                    let mut state = LinkState::Undefined(Vec::new());
-                    state.add_usage(&used_link);
-                    self.links.insert(used_link.href, state);
+                // ingest only if the link has a good schema
+                if !is_bad_schema(&used_link.href.0.as_bytes()) {
+                    self.used_link_count += 1;
+                    if let Some(state) = self.links.get_mut(&used_link.href) {
+                        state.add_usage(&used_link);
+                    } else {
+                        let mut state = LinkState::Undefined(Vec::new());
+                        state.add_usage(&used_link);
+                        self.links.insert(used_link.href, state);
+                    }
                 }
             }
             Link::Defines(defined_link) => {
@@ -164,4 +167,51 @@ impl<P: Copy + PartialEq> BrokenLinkCollector<P> {
     pub fn used_links_count(&self) -> usize {
         self.used_link_count
     }
+
+}
+
+    #[inline]
+    fn is_bad_schema(url: &[u8]) -> bool {
+        // check if url is empty
+        let first_char = match url.first() {
+            Some(x) => x,
+            None => return false,
+        };
+
+        // protocol-relative URL
+        if url.starts_with(b"//") {
+            return true;
+        }
+
+        // check if string before first : is a valid URL scheme
+        // see RFC 2396, Appendix A for what constitutes a valid scheme
+
+        if !matches!(first_char, b'a'..=b'z' | b'A'..=b'Z') {
+            return false;
+        }
+
+        for c in &url[1..] {
+            match c {
+                b'a'..=b'z' => (),
+                b'A'..=b'Z' => (),
+                b'0'..=b'9' => (),
+                b'+' => (),
+                b'-' => (),
+                b'.' => (),
+                b':' => return true,
+                _ => return false,
+            }
+        }
+
+        false
+    }
+
+#[test]
+fn test_is_bad_schema() {
+    assert!(is_bad_schema(b"//"));
+    assert!(!is_bad_schema(b""));
+    assert!(!is_bad_schema(b"http"));
+    assert!(is_bad_schema(b"http:"));
+    assert!(is_bad_schema(b"http:/"));
+    assert!(!is_bad_schema(b"http/"));
 }
