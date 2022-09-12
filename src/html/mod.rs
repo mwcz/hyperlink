@@ -19,8 +19,13 @@ use crate::paragraph::ParagraphWalker;
 use pretty_assertions::assert_eq;
 
 #[inline]
-fn push_and_canonicalize(base: &mut BumpString, path: &str) {
-    if path.starts_with('/') {
+pub fn push_and_canonicalize(base: &mut BumpString, path: &str) {
+    // is external?
+    if path.starts_with("//") || path.starts_with("http://") || path.starts_with("https://") {
+        base.clear();
+        base.push_str(path);
+        return;
+    } else if path.starts_with('/') {
         base.clear();
     } else if path.is_empty() {
         if base.ends_with('/') {
@@ -113,10 +118,43 @@ mod test_push_and_canonicalize {
         push_and_canonicalize(&mut base, path);
         assert_eq!(base, "foo/index.html/baz.html");
     }
+
+    #[test]
+    fn external_scheme_index() {
+        let mut base = String::from("index.html");
+        let path = "http://foo.com";
+        push_and_canonicalize(&mut base, path);
+        assert_eq!(base, "http://foo.com");
+    }
+
+    #[test]
+    fn external_scheme_empty_base() {
+        let mut base = String::from("");
+        let path = "http://foo.com";
+        push_and_canonicalize(&mut base, path);
+        assert_eq!(base, "http://foo.com");
+    }
+
+    #[test]
+    fn external_scheme_relative() {
+        let mut base = String::from("bar.html");
+        let path = "//foo.com";
+        push_and_canonicalize(&mut base, path);
+        assert_eq!(base, "//foo.com");
+    }
+
+    #[test]
+    fn external_scheme_subdir() {
+        let mut base = String::from("foo/bar.html");
+        let path = "http://foo.com";
+        push_and_canonicalize(&mut base, path);
+        assert_eq!(base, "http://foo.com");
+    }
+
 }
 
 #[inline]
-fn try_percent_decode(input: &str) -> Cow<'_, str> {
+pub fn try_percent_decode(input: &str) -> Cow<'_, str> {
     percent_encoding::percent_decode_str(input)
         .decode_utf8()
         .unwrap_or(Cow::Borrowed(input))
@@ -250,7 +288,6 @@ impl Document {
         }
 
         push_and_canonicalize(&mut href, &try_percent_decode(&rel_href[..qs_start]));
-        println!("{:#?}", href);
 
         if preserve_anchor {
             let anchor = &rel_href[anchor_start..];

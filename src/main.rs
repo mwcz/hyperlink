@@ -18,8 +18,6 @@ use collector::{BrokenLinkCollector, LinkCollector, UsedLinkCollector};
 use html::{DefinedLink, Document, DocumentBuffers, Link};
 use paragraph::{DebugParagraphWalker, NoopParagraphWalker, ParagraphHasher, ParagraphWalker};
 
-use crate::collector::is_bad_schema;
-
 static MARKDOWN_FILES: &[&str] = &["md", "mdx"];
 static HTML_FILES: &[&str] = &["htm", "html"];
 
@@ -362,18 +360,43 @@ fn dump_external_links(base_path: PathBuf) -> Result<(), Error> {
         html_result.collector.used_links.len(), html_result.file_count, html_result.documents_count,
     );
 
+    let mut external_links = BTreeMap::new();
     let mut external_link_count: u32 = 0;
 
-    for link in html_result.collector.used_links {
-        if is_bad_schema(link.href.as_bytes()) {
-            println!("  {}", link.href);
+    let used_links = html_result
+        .collector
+        .used_links
+        .iter()
+        .peekable();
+
+
+    for used_link in used_links {
+
+        // check if the used link is external
+        if used_link.href.starts_with("//") || used_link.href.starts_with("http:/") || used_link.href.starts_with("https:/") {
             external_link_count += 1;
+
+            let external_links_at_path = external_links
+                .entry(used_link.path.clone())
+                .or_insert_with(|| BTreeSet::new());
+
+            external_links_at_path.insert(&used_link.href);
         }
     }
 
-    println!();
+    for (filepath, external_links_by_path) in external_links {
+        println!("{}", filepath.display());
+
+        for href in &external_links_by_path {
+            println!("  info: external link {}", href);
+        }
+
+        println!();
+    }
 
     println!("Found {} external links", external_link_count);
+
+    mem::forget(html_result);
 
     Ok(())
 }

@@ -1,9 +1,11 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use bumpalo::Bump;
+use bumpalo::collections::String as BumpString;
 use patricia_tree::PatriciaMap;
 
-use crate::html::{Href, Link, UsedLink};
+use crate::html::{Href, Link, UsedLink, push_and_canonicalize, try_percent_decode};
 
 impl<'a> AsRef<[u8]> for Href<'a> {
     fn as_ref(&self) -> &[u8] {
@@ -82,6 +84,7 @@ impl<P: Copy> LinkState<P> {
 pub struct BrokenLinkCollector<P> {
     links: PatriciaMap<LinkState<P>>,
     used_link_count: usize,
+    arena: Bump,
 }
 
 impl<P: Send + Copy> LinkCollector<P> for BrokenLinkCollector<P> {
@@ -89,12 +92,22 @@ impl<P: Send + Copy> LinkCollector<P> for BrokenLinkCollector<P> {
         BrokenLinkCollector {
             links: PatriciaMap::new(),
             used_link_count: 0,
+            arena: Bump::new(),
         }
     }
 
     fn ingest(&mut self, link: Link<'_, P>) {
         match link {
             Link::Uses(used_link) => {
+                let qs_start = used_link.href.0
+                    .find(&['?', '#'][..])
+                    .unwrap_or_else(|| used_link.href.0.len());
+
+                // try calling canonicalize
+                let path = used_link.path.to_str().unwrap_or("");
+                let mut href = BumpString::from_str_in(path, &self.arena);
+                push_and_canonicalize(&mut href, &try_percent_decode(&used_link.href.0[..qs_start]));
+
                 // ingest only if the link has a good schema
                 if !is_bad_schema(&used_link.href.0.as_bytes()) {
                     self.used_link_count += 1;
@@ -170,41 +183,41 @@ impl<P: Copy + PartialEq> BrokenLinkCollector<P> {
 
 }
 
-    #[inline]
-    pub fn is_bad_schema(url: &[u8]) -> bool {
-        // check if url is empty
-        let first_char = match url.first() {
-            Some(x) => x,
-            None => return false,
-        };
+#[inline]
+fn is_bad_schema(url: &[u8]) -> bool {
+    // check if url is empty
+    let first_char = match url.first() {
+        Some(x) => x,
+        None => return false,
+    };
 
-        // protocol-relative URL
-        if url.starts_with(b"//") {
-            return true;
-        }
-
-        // check if string before first : is a valid URL scheme
-        // see RFC 2396, Appendix A for what constitutes a valid scheme
-
-        if !matches!(first_char, b'a'..=b'z' | b'A'..=b'Z') {
-            return false;
-        }
-
-        for c in &url[1..] {
-            match c {
-                b'a'..=b'z' => (),
-                b'A'..=b'Z' => (),
-                b'0'..=b'9' => (),
-                b'+' => (),
-                b'-' => (),
-                b'.' => (),
-                b':' => return true,
-                _ => return false,
-            }
-        }
-
-        false
+    // protocol-relative URL
+    if url.starts_with(b"//") {
+        return true;
     }
+
+    // check if string before first : is a valid URL scheme
+    // see RFC 2396, Appendix A for what constitutes a valid scheme
+
+    if !matches!(first_char, b'a'..=b'z' | b'A'..=b'Z') {
+        return false;
+    }
+
+    for c in &url[1..] {
+        match c {
+            b'a'..=b'z' => (),
+            b'A'..=b'Z' => (),
+            b'0'..=b'9' => (),
+            b'+' => (),
+            b'-' => (),
+            b'.' => (),
+            b':' => return true,
+            _ => return false,
+        }
+    }
+
+    false
+}
 
 #[test]
 fn test_is_bad_schema() {
