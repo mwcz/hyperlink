@@ -18,6 +18,8 @@ use collector::{BrokenLinkCollector, LinkCollector, UsedLinkCollector};
 use html::{DefinedLink, Document, DocumentBuffers, Link};
 use paragraph::{DebugParagraphWalker, NoopParagraphWalker, ParagraphHasher, ParagraphWalker};
 
+use crate::html::is_external_url;
+
 static MARKDOWN_FILES: &[&str] = &["md", "mdx"];
 static HTML_FILES: &[&str] = &["htm", "html"];
 
@@ -373,7 +375,7 @@ fn dump_external_links(base_path: PathBuf) -> Result<(), Error> {
     for used_link in used_links {
 
         // check if the used link is external
-        if used_link.href.starts_with("//") || used_link.href.starts_with("http:/") || used_link.href.starts_with("https:/") {
+        if is_external_url(used_link.href.as_str()) {
             external_link_count += 1;
 
             let external_links_at_path = external_links

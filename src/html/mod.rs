@@ -21,7 +21,7 @@ use pretty_assertions::assert_eq;
 #[inline]
 pub fn push_and_canonicalize(base: &mut BumpString, path: &str) {
     // is external?
-    if path.starts_with("//") || path.starts_with("http://") || path.starts_with("https://") {
+    if is_external_url(path) {
         base.clear();
         base.push_str(path);
         return;
@@ -151,6 +151,23 @@ mod test_push_and_canonicalize {
         assert_eq!(base, "http://foo.com");
     }
 
+}
+
+#[inline]
+pub fn is_external_url(url: &str) -> bool {
+    url.starts_with("//") || url.starts_with("http://") || url.starts_with("https://")
+}
+
+#[test]
+fn test_is_external() {
+    assert!(is_external_url("http://foo.com"));
+    assert!(is_external_url("https://foo.com"));
+    assert!(is_external_url("//foo.com"));
+    assert!(!is_external_url("foo.com"));
+    assert!(!is_external_url("https:/foo.com"));
+    assert!(!is_external_url("/foo"));
+    assert!(!is_external_url("hello/http://foo.com"));
+    assert!(!is_external_url("/foo/bar//baz"));
 }
 
 #[inline]
