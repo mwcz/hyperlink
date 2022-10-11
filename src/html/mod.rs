@@ -149,17 +149,25 @@ mod test_push_and_canonicalize {
         push_and_canonicalize(&mut base, path);
         assert_eq!(base, "http://foo.com");
     }
-
 }
 
 #[inline]
 pub fn is_external_url(url: &str) -> bool {
-    url.starts_with("//") || url.starts_with("http://") || url.starts_with("https://")
+    url.starts_with("//")
+        || url.starts_with("http://")
+        || url.starts_with("https://")
+        || url.starts_with("mailto:")
+        || url.starts_with("tel:")
+        || url.starts_with("fax:")
 }
 
 #[test]
 fn test_is_external() {
     assert!(is_external_url("http://foo.com"));
+    assert!(is_external_url("mailto:foo@email.com"));
+    assert!(is_external_url("fax:+12345678910"));
+    assert!(is_external_url("tel:+12345678910"));
+    assert!(is_external_url("https://foo.com"));
     assert!(is_external_url("https://foo.com"));
     assert!(is_external_url("//foo.com"));
     assert!(!is_external_url("foo.com"));

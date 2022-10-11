@@ -221,6 +221,7 @@ fn is_bad_schema(url: &[u8]) -> bool {
 
 #[test]
 fn test_is_bad_schema() {
+    assert!(is_bad_schema(b"mailto:mclayton@redhat.com"));
     assert!(is_bad_schema(b"//"));
     assert!(!is_bad_schema(b""));
     assert!(!is_bad_schema(b"http"));
